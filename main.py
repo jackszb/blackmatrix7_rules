@@ -210,7 +210,7 @@ def parse_list_file(link, output_directory):
         os.makedirs(output_directory, exist_ok=True)
 
         # Build the final JSON structure
-        result_rules = {"version": 1, "rules": []}
+        result_rules = {"version": 3, "rules": []}
         domain_entries = []
         grouped_data = df.groupby('pattern')['address'].apply(list).to_dict()
 
