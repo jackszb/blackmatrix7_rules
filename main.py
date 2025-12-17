@@ -212,35 +212,43 @@ def parse_list_file(link, output_directory):
         # Build the final JSON structure
         result_rules = {"version": 3, "rules": []}
         domain_entries = []
+        domain_suffix_entries = []
+        domain_keyword_entries = []
+        domain_regex_entries = []
+        ip_cidr_entries = []
+
         grouped_data = df.groupby('pattern')['address'].apply(list).to_dict()
 
         for pattern, addresses in grouped_data.items():
             if pattern == 'domain_suffix':
-                rule_entry = {pattern: [addr.strip() for addr in addresses]}
-                result_rules["rules"].append(rule_entry)
+                domain_suffix_entries.extend([addr.strip() for addr in addresses])
             elif pattern == 'domain':
                 domain_entries.extend([addr.strip() for addr in addresses])
-            else:
-                rule_entry = {pattern: [addr.strip() for addr in addresses]}
-                result_rules["rules"].append(rule_entry)
+            elif pattern == 'domain_keyword':
+                domain_keyword_entries.extend([addr.strip() for addr in addresses])
+            elif pattern == 'domain_regex':
+                domain_regex_entries.extend([addr.strip() for addr in addresses])
+            elif pattern == 'ip_cidr':
+                ip_cidr_entries.extend([addr.strip() for addr in addresses])
 
-        # If we have direct 'domain' entries, deduplicate and insert them at the top
-        domain_entries = list(set(domain_entries))
+        # Add entries in the right order
         if domain_entries:
-            result_rules["rules"].insert(0, {'domain': domain_entries})
+            result_rules["rules"].insert(0, {'domain': list(set(domain_entries))})
+        if domain_suffix_entries:
+            result_rules["rules"].append({'domain_suffix': list(set(domain_suffix_entries))})
+        if domain_keyword_entries:
+            result_rules["rules"].append({'domain_keyword': list(set(domain_keyword_entries))})
+        if domain_regex_entries:
+            result_rules["rules"].append({'domain_regex': list(set(domain_regex_entries))})
+        if ip_cidr_entries:
+            result_rules["rules"].append({'ip_cidr': list(set(ip_cidr_entries))})
 
-        # Optionally, if we want to append any AND rules, we could do:
-        # if rules_list[0]:
-        #     result_rules["rules"].extend(rules_list[0])
-
-        # Build the output filename based on the link's basename
-        file_basename = os.path.basename(link).split('.')[0]  # e.g. example.list -> "example"
+        # Sort and write the JSON
+        file_basename = os.path.basename(link).split('.')[0]
         file_name = os.path.join(output_directory, f"{file_basename}.json")
 
-        # Sort the final dict for consistent ordering and write it to a JSON file
         with open(file_name, 'w', encoding='utf-8') as output_file:
             result_rules_str = json.dumps(sort_dict(result_rules), ensure_ascii=False, indent=2)
-            # Fix double-escape of backslashes
             result_rules_str = result_rules_str.replace('\\\\', '\\')
             output_file.write(result_rules_str)
 
@@ -278,23 +286,19 @@ def get_list_files_from_github(owner, repo, path="rule/QuantumultX"):
     return results
 
 if __name__ == "__main__":
-    # 1. Retrieve all .list files from the GitHub repo
     owner = "proother"
     repo = "ios_rule_script"
     all_list_urls = get_list_files_from_github(owner, repo, path="rule/QuantumultX")
     
     print(f"Found {len(all_list_urls)} .list files in the repository.")
 
-    # 2. Choose or create your output directory
-    output_dir = "./"  # you can change this if desired
+    output_dir = "./"
     result_file_names = []
 
-    # 3. Parse each .list file using the existing pipeline
     for link in all_list_urls:
         result_file_name = parse_list_file(link, output_directory=output_dir)
         if result_file_name:
             result_file_names.append(result_file_name)
 
-    # 4. Print the final generated files
     for file_name in result_file_names:
         print("Generated:", file_name)
